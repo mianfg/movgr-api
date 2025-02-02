@@ -1,0 +1,56 @@
+[tool.poetry]
+name = "movgr-api"
+version = "0.1.0"
+description = "API para información de movilidad urbana de Granada (bus y metro)"
+authors = ["Miguel Ángel Fernández Gutiérrez <yo@mianfg.me>"]
+license = "MIT License"
+readme = "README.md"
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.112.1"
+beautifulsoup4 = "^4.12.3"
+requests = "^2.32.3"
+uvicorn = "^0.30.6"
+fuzzywuzzy = "^0.18.0"
+python-levenshtein = "^0.26.1"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+ruff = "*"
+pytest = "^8.2.2"
+httpx = "^0.28.1"
+pre-commit = "*"
+
+[tool.poetry.group.lambda]
+optional = true
+
+[tool.poetry.group.lambda.dependencies]
+mangum = "^0.19.0"
+
+
+[tool.poetry.scripts]
+local = "app:run"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 120
+show-fixes = true
+src = ["src",]
+target-version = "py312"
+select = [
+    "E",   # Error
+    "F",   # Flake8
+    "I",   # iSort rules
+    "PL",  # Pylint rules
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
