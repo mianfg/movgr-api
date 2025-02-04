@@ -90,7 +90,7 @@ def get_llegadas_parada(num_parada: int) -> LlegadasBus:
         rows = table.find_all("div", {"class": "tfr"})
         for row in rows:
             cols = row.find_all("div", {"class": "tfcc"})
-            if len(cols) >= 3:
+            if len(cols) >= 3:  # noqa: PLR2004
                 id_linea = cols[0].find("div", {"class": "form_lle"}).getText().strip()
                 try:
                     linea = get_linea(id_linea)

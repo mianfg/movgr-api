@@ -8,7 +8,7 @@ from src.routers.metro import router as metro_api
 app = FastAPI(
     title="MovGR",
     description=("API para información de transportes urbanos de Granada"),
-    version="0.1.0",
+    version="0.1.1",
     contact={
         "name": "Miguel Ángel Fernández Gutiérrez",
         "url": "https://mianfg.me",
