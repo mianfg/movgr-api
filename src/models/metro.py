@@ -1,24 +1,26 @@
-"""CategoryModel."""
+from enum import Enum
 
 from pydantic import Field
 
-from src.models.base import BusGranadaAPIBaseModel
+from src.models.base import MovGrBaseModel
 
 
-class ProximoMetroModel(BusGranadaAPIBaseModel):
-    """Modelo para próximo autobús."""
-
-    direccion: str = Field(description="Dirección de tren")
-    minutos: int = Field(
-        description="Número de minutos hasta que llegue el tren",
-        ge=0,
-    )
+class DireccionMetro(Enum):
+    Albolote = "Albolote"
+    Armilla = "Armilla"
 
 
-class ParadaMetroModel(BusGranadaAPIBaseModel):
-    """Modelo para parada."""
+class ProximoMetro(MovGrBaseModel):
+    direccion: DireccionMetro
+    minutos: int = Field(ge=0)
 
-    nombre: str = Field(description="Nombre de la parada")
-    proximos: list[ProximoMetroModel] = Field(
-        description="Lista de próximos autobuses",
-    )
+
+class ParadaMetro(MovGrBaseModel):
+    linea: str
+    id: str
+    nombre: str
+
+
+class LlegadasMetro(MovGrBaseModel):
+    parada: ParadaMetro
+    proximos: list[ProximoMetro]

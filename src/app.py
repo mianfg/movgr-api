@@ -1,5 +1,3 @@
-"""FastAPI entrypoint."""
-
 from fastapi import APIRouter, FastAPI, status
 from fastapi.responses import Response
 
@@ -8,7 +6,7 @@ from src.routers.bus import router as bus_api
 from src.routers.metro import router as metro_api
 
 app = FastAPI(
-    title="MovGranada API",
+    title="MovGR",
     description=("API para información de transportes urbanos de Granada"),
     version="0.1.0",
     contact={
@@ -18,12 +16,12 @@ app = FastAPI(
     },
 )
 
+
 add_exception_handler(app)
 
 
 @app.get("/")
 async def health_check() -> Response:
-    """Check API health."""
     return Response(status_code=status.HTTP_200_OK)
 
 
@@ -47,12 +45,10 @@ except ImportError:
 
 
 def run() -> None:
-    """Run FastAPI via uvicorn."""
     import uvicorn
 
-    uvicorn.run("app:app", host="localhost", port=8080, reload=True, workers=3)
+    uvicorn.run("src.app:app", host="localhost", port=8080, reload=True, workers=3)
 
 
-# for development purposes
 if __name__ == "__main__":
     run()

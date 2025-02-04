@@ -1,25 +1,30 @@
-"""Servicio para obtener información de paradas de metro."""
-
+import csv
+import os
 import re
 
 import requests
 from bs4 import BeautifulSoup
-from fuzzywuzzy import fuzz
 
 from src.exceptions.exceptions import ParadaNotFoundError
 from src.models.metro import (
-    ParadaMetroModel,
-    ProximoMetroModel,
+    LlegadasMetro,
+    ParadaMetro,
+    ProximoMetro,
 )
 
 
-def __similarity(str_1: str, str_2: str) -> float:
-    ratio = float(fuzz.token_set_ratio(str_2, str_1) / 100)
-    qratio = float(fuzz.QRatio(str_2, str_1) / 100)
-    return max(ratio, qratio)
+def get_paradas() -> list[ParadaMetro]:
+    with open(os.path.join(os.path.dirname(__file__), "../data/metro/paradas.csv"), "r") as file:
+        reader = csv.reader(file)
+        next(reader)
+        paradas = [ParadaMetro(linea=row[0], id=row[1], nombre=row[2]) for row in reader]
+    return paradas
 
 
-def __get_paradas() -> list[ParadaMetroModel]:
+paradas = get_paradas()
+
+
+def get_llegadas() -> list[LlegadasMetro]:
     headers = {
         "accept": "*/*",
         "content-type": "application/x-www-form-urlencoded",
@@ -39,50 +44,33 @@ def __get_paradas() -> list[ParadaMetroModel]:
     soup = BeautifulSoup(response.text, "html.parser")
 
     datos = [cell.getText().strip() for cell in soup.find_all("td")]
-    paradas = [datos[i : i + 5] for i in range(0, len(datos), 5)]
+    paradas_soup = [datos[i : i + 5] for i in range(0, len(datos), 5)]
 
-    for parada in paradas:
+    for parada in paradas_soup:
         parada[1:] = ["".join(re.findall(r"\d+", col)) for col in parada[1:]]
 
-    return {
-        parada[0]: ParadaMetroModel(
-            nombre=parada[0],
+    return [
+        LlegadasMetro(
+            parada=parada,
             proximos=sorted(
                 [
-                    ProximoMetroModel(
+                    ProximoMetro(
                         direccion="Armilla" if i >= 2 else "Albolote",  # noqa: PLR2004
                         minutos=int(col),
                     )
-                    for i, col in enumerate(parada[1:])
+                    for i, col in enumerate(parada_soup[1:])
                     if col
                 ],
                 key=lambda proximo: proximo.minutos,
             ),
         )
-        for parada in paradas
-    }
+        for parada_soup, parada in zip(paradas_soup, paradas)
+    ]
 
 
-def __argmax(a: list) -> int:
-    return max(range(len(a)), key=lambda x: a[x])
-
-
-def get_parada_metro(
-    nombre_parada: str,
-    fuzzy: bool = True,
-    fuzzy_threshold: float = 0.6,
-) -> ParadaMetroModel:
-    """Pedir información de parada de metro."""
-    paradas = __get_paradas()
-
-    if fuzzy:
-        similarities = [__similarity(parada, nombre_parada) for parada in paradas]
-        if max(similarities) < fuzzy_threshold:
-            raise ParadaNotFoundError from None
-
-        nombre_parada = list(paradas.keys())[__argmax(similarities)]
-
-    if nombre_parada not in paradas:
-        raise ParadaNotFoundError from None
-
-    return paradas[nombre_parada]
+def get_llegadas_parada(id_parada: str) -> ProximoMetro:
+    proximos = get_llegadas()
+    for proximo in proximos:
+        if proximo.parada.id == id_parada:
+            return proximo
+    raise ParadaNotFoundError from None

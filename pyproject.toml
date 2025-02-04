@@ -1,10 +1,11 @@
 [tool.poetry]
 name = "movgr-api"
-version = "0.1.0"
+version = "0.1.1"
 description = "API para información de movilidad urbana de Granada (bus y metro)"
 authors = ["Miguel Ángel Fernández Gutiérrez <yo@mianfg.me>"]
 license = "MIT License"
 readme = "README.md"
+packages = [{ include = "src" }]
 
 
 [tool.poetry.dependencies]
@@ -13,8 +14,6 @@ fastapi = "^0.112.1"
 beautifulsoup4 = "^4.12.3"
 requests = "^2.32.3"
 uvicorn = "^0.30.6"
-fuzzywuzzy = "^0.18.0"
-python-levenshtein = "^0.26.1"
 
 [tool.poetry.group.dev]
 optional = true
@@ -33,7 +32,7 @@ mangum = "^0.19.0"
 
 
 [tool.poetry.scripts]
-local = "app:run"
+local = "src.app:run"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,30 +1,34 @@
-"""Router para metro."""
-
 from fastapi import APIRouter
-from fastapi.responses import PlainTextResponse
 
-from src.models.metro import ParadaMetroModel
-from src.services.metro import get_parada_metro
-from src.services.vcard import make_vcard_metro
+from src.models.metro import LlegadasMetro, ParadaMetro
+from src.services.metro import get_llegadas, get_llegadas_parada
+from src.services.metro import paradas as paradas_metro
 
 router = APIRouter()
 
 
 @router.get(
-    "/{nombre_parada}",
-    response_model=ParadaMetroModel,
-    response_description="Información de parada de metro",
+    "/paradas",
+    response_model=list[ParadaMetro],
+    response_description="Lista de paradas de metro",
 )
-async def metro(nombre_parada: str) -> ParadaMetroModel:
-    """Obtener información de parada de metro."""
-    return get_parada_metro(nombre_parada, fuzzy=True)
+async def paradas() -> list[ParadaMetro]:
+    return paradas_metro
 
 
 @router.get(
-    "/{nombre_parada}/vcard",
-    response_class=PlainTextResponse,
-    response_description="Información de parada de metro, en VCARD",
+    "/llegadas",
+    response_model=list[LlegadasMetro],
+    response_description="Obtener estado actual de todas las paradas de metro",
 )
-async def metro_vcard(nombre_parada: str) -> str:
-    """Obtener información de parada de metro, en VCARD."""
-    return make_vcard_metro(get_parada_metro(nombre_parada, fuzzy=True))
+async def llegadas() -> list[LlegadasMetro]:
+    return get_llegadas()
+
+
+@router.get(
+    "/llegadas/{id_parada}",
+    response_model=LlegadasMetro,
+    response_description="Información de parada de metro",
+)
+async def llegadas_parada(id_parada: str) -> LlegadasMetro:
+    return get_llegadas_parada(id_parada)

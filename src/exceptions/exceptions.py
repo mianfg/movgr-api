@@ -1,13 +1,14 @@
-"""Excepciones."""
-
-
 class BusGranadaAPIError(Exception):
-    """Excepción general."""
+    pass
 
 
 class ParadaNotFoundError(BusGranadaAPIError):
-    """Excepción para parada no encontrada."""
+    pass
+
+
+class LineaNotFoundError(BusGranadaAPIError):
+    pass
 
 
 class ParadaRequestError(BusGranadaAPIError):
-    """Excepción para errores con requests."""
+    pass

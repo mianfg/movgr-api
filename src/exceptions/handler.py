@@ -1,8 +1,7 @@
-"""Exception handling."""
-
 from fastapi import FastAPI, HTTPException, Request
 
 from src.exceptions.exceptions import (
+    LineaNotFoundError,
     ParadaNotFoundError,
     ParadaRequestError,
 )
@@ -14,6 +13,11 @@ async def __exception_handler(request: Request, exc: Exception) -> None:  # noqa
             status_code=404,
             detail="Parada no encontrada",
         )
+    if isinstance(exc, LineaNotFoundError):
+        raise HTTPException(
+            status_code=404,
+            detail="Línea no encontrada",
+        )
     if isinstance(exc, ParadaRequestError):
         raise HTTPException(
             status_code=500,
@@ -24,6 +28,6 @@ async def __exception_handler(request: Request, exc: Exception) -> None:  # noqa
 
 
 def add_exception_handler(app: FastAPI) -> None:
-    """Add exception handlers to FastAPI."""
     app.add_exception_handler(ParadaNotFoundError, __exception_handler)
     app.add_exception_handler(ParadaRequestError, __exception_handler)
+    app.add_exception_handler(LineaNotFoundError, __exception_handler)
