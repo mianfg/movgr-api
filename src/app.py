@@ -1,4 +1,7 @@
+import os
+
 from fastapi import APIRouter, FastAPI, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from src.exceptions.handler import add_exception_handler
@@ -15,6 +18,15 @@ app = FastAPI(
         "email": "hello@mianfg.me",
     },
 )
+
+if cors_origins := os.getenv("CORS_ORIGINS"):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[origin.strip() for origin in cors_origins.split(",")],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 add_exception_handler(app)
