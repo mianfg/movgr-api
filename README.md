@@ -18,17 +18,11 @@ poetry run local
 
 ## Ejecución
 
-Actualmente, esta API se encuentra alojada en AWS Lambda y se puede acceder a ella a través de <https://movgr.mianfg.me/>. Más información sobre cómo hacer este despliegue en [la wiki]().
+Actualmente, esta API se encuentra alojada en AWS Lambda y se puede acceder a ella a través de <https://movgr.apis.mianfg.me/>. Más información sobre cómo hacer este despliegue en [la wiki](https://github.com/mianfg/movgr-api/wiki/Deploy-to-AWS).
 
 ## Documentación
 
-Puedes acceder a la documentación de la API [aquí](https://movgr.mianfg.me/docs).
-
-## Apple Shortcuts
-
-Esta API se ha creado con el objetivo de facilitar la información de la movilidad urbana de Granada para Apple Shortcuts.
-
-Puedes encontrar una lista de accesos directos en mi [página de accesos directos](https://mianfg.me/shortcuts).
+Puedes acceder a la documentación de la API [aquí](https://movgr.apis.mianfg.me/docs).
 
 ## Status
 
