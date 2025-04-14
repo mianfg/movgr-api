@@ -38,6 +38,7 @@ def get_llegadas() -> list[LlegadasMetro]:
         "https://metropolitanogranada.es/MGhorariosreal.asp",
         headers=headers,
         timeout=5,
+        verify=False,
     )
     response.encoding = response.apparent_encoding
 
