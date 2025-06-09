@@ -90,14 +90,15 @@ def get_llegadas_parada(num_parada: int) -> LlegadasBus:
         rows = table.find_all("div", {"class": "tfr"})
         for row in rows:
             cols = row.find_all("div", {"class": "tfcc"})
+            cols_s = row.find_all("div", {"class": "tfccs"})
             if len(cols) >= 3:  # noqa: PLR2004
                 id_linea = cols[0].find("div", {"class": "form_lle"}).getText().strip()
                 try:
                     linea = get_linea(id_linea)
                 except LineaNotFoundError:
                     linea = LineaBus(id=id_linea)
-                destino = cols[1].getText().strip()
-                minutos_text = cols[2].getText().strip()
+                destino = cols_s[0].getText().strip()
+                minutos_text = cols[1].getText().strip()
                 minutos = int(minutos_text) if minutos_text.isdigit() else 0
                 proximos.append(
                     ProximoBus(
