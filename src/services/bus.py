@@ -1,6 +1,3 @@
-import csv
-import os
-
 import requests
 from bs4 import BeautifulSoup
 
@@ -10,51 +7,50 @@ from src.exceptions.exceptions import (
     ParadaNotFoundError,
     ParadaRequestError,
 )
+from src.gtfs import bus_feed
 from src.models.bus import LineaBus, LlegadasBus, ParadaBus, ProximoBus
+from src.models.map import LineaBusDetail, RouteShape, ShapePoint
 
 
-def get_paradas() -> dict[int, ParadaBus]:
-    with open(os.path.join(os.path.dirname(__file__), "../data/bus/paradas.csv"), "r") as file:
-        reader = csv.reader(file)
-        next(reader)
-        paradas = {int(row[0]): ParadaBus(id=row[0], nombre=row[1]) for row in reader}
-    return paradas
+def _build_paradas() -> dict[int, ParadaBus]:
+    result: dict[int, ParadaBus] = {}
+    for code, stop in bus_feed.stops_by_code.items():
+        try:
+            stop_id = int(code)
+        except ValueError:
+            continue
+        route_names = sorted(bus_feed.stop_route_names.get(code, set()))
+        result[stop_id] = ParadaBus(
+            id=stop_id,
+            nombre=stop.stop_name,
+            lat=stop.stop_lat,
+            lon=stop.stop_lon,
+            lineas=route_names or None,
+        )
+    return result
 
 
-def get_lineas() -> dict[str, LineaBus]:
-    with open(os.path.join(os.path.dirname(__file__), "../data/bus/lineas.csv"), "r") as file:
-        reader = csv.reader(file)
-        next(reader)
-        lineas = {row[0]: LineaBus(id=row[0], nombre=row[1]) for row in reader}
-    return lineas
+def _build_lineas() -> dict[str, LineaBus]:
+    return {
+        short: LineaBus(
+            id=short,
+            nombre=route.route_long_name or None,
+            color=route.route_color or None,
+            text_color=route.route_text_color or None,
+        )
+        for short, route in bus_feed.routes_by_short_name.items()
+    }
 
 
-paradas = get_paradas()
-lineas = get_lineas()
-
-
-def __extract_parada_from_soup(soup: BeautifulSoup, id_parada: int) -> ParadaBus:
-    """Extract parada information from BeautifulSoup object."""
-    # Check for error message
-    message = soup.find("div", {"class": "message"})
-    if message and "no existe" in message.getText():
-        raise ParadaNotFoundError from None
-
-    # Extract the full parada name from mainhead
-    mainhead = soup.find("div", {"class": "mainhead"})
-    if mainhead:
-        nombre_div = mainhead.find("div", {"style": lambda x: x and "color:" in x})
-        if nombre_div:
-            nombre_parada = nombre_div.getText().strip()
-            nombre_parada = " ".join(nombre_parada.split())  # Clean whitespace
-            return ParadaBus(id=id_parada, nombre=nombre_parada)
-
-    # If we can't find the name, raise error
-    raise ParadaNotFoundError from None
+paradas = _build_paradas()
+lineas = _build_lineas()
 
 
 def get_parada(id_parada: int) -> ParadaBus:
-    """Scrape parada information from the bus service website."""
+    """Return stop info from GTFS data, falling back to scraping."""
+    if id_parada in paradas:
+        return paradas[id_parada]
+
     cache_key = f"bus:parada:{id_parada}"
     cached = get_cached(cache_key)
     if cached:
@@ -75,6 +71,53 @@ def get_linea(id_linea: str) -> LineaBus:
         return lineas[id_linea]
     except KeyError:
         raise LineaNotFoundError from None
+
+
+def get_all_paradas() -> list[ParadaBus]:
+    return list(paradas.values())
+
+
+def get_all_lineas() -> list[LineaBus]:
+    return list(lineas.values())
+
+
+def get_linea_detail(id_linea: str) -> LineaBusDetail:
+    if id_linea not in lineas:
+        raise LineaNotFoundError from None
+
+    linea = lineas[id_linea]
+    direction_shapes = bus_feed.route_shapes.get(id_linea, {})
+    shapes = [
+        RouteShape(
+            direction=d,
+            points=[ShapePoint(lat=p.lat, lon=p.lon) for p in pts],
+        )
+        for d, pts in sorted(direction_shapes.items())
+    ]
+    return LineaBusDetail(
+        id=linea.id,
+        nombre=linea.nombre,
+        color=linea.color,
+        text_color=linea.text_color,
+        shapes=shapes,
+    )
+
+
+def __extract_parada_from_soup(soup: BeautifulSoup, id_parada: int) -> ParadaBus:
+    """Extract parada information from BeautifulSoup object."""
+    message = soup.find("div", {"class": "message"})
+    if message and "no existe" in message.getText():
+        raise ParadaNotFoundError from None
+
+    mainhead = soup.find("div", {"class": "mainhead"})
+    if mainhead:
+        nombre_div = mainhead.find("div", {"style": lambda x: x and "color:" in x})
+        if nombre_div:
+            nombre_parada = nombre_div.getText().strip()
+            nombre_parada = " ".join(nombre_parada.split())
+            return ParadaBus(id=id_parada, nombre=nombre_parada)
+
+    raise ParadaNotFoundError from None
 
 
 def __perform_request(num_parada: int) -> dict:
@@ -113,7 +156,6 @@ def __perform_request(num_parada: int) -> dict:
     if response.status_code != 200:  # noqa: PLR2004
         raise ParadaRequestError
 
-    # Ensure proper UTF-8 encoding
     response.encoding = "utf-8"
     return response
 
@@ -127,10 +169,8 @@ def get_llegadas_parada(num_parada: int) -> LlegadasBus:
     req = __perform_request(num_parada)
     soup = BeautifulSoup(req.text, "html.parser")
 
-    # Extract parada information
     parada = __extract_parada_from_soup(soup, num_parada)
 
-    # Check if there's a message indicating no arrivals
     message = soup.find("div", {"class": "message"})
     if message:
         return LlegadasBus(parada=parada, proximos=[])
@@ -143,7 +183,6 @@ def get_llegadas_parada(num_parada: int) -> LlegadasBus:
             cols = row.find_all("div", {"class": "tfcc"})
             cols_s = row.find_all("div", {"class": "tfccs"})
             if len(cols) >= 3 and len(cols_s) >= 1:  # noqa: PLR2004
-                # Find line number - it's inside a div with class "form_white" in the first column
                 form_white_div = cols[0].find("div", {"class": "form_white"})
                 if form_white_div:
                     id_linea = form_white_div.getText().strip()
@@ -151,9 +190,7 @@ def get_llegadas_parada(num_parada: int) -> LlegadasBus:
                         linea = get_linea(id_linea)
                     except LineaNotFoundError:
                         linea = LineaBus(id=id_linea)
-                    # Destination is in the tfccs div
                     destino = cols_s[0].getText().strip()
-                    # Minutes is in the third column (index 1, skipping the first which has the form)
                     minutos_text = cols[1].getText().strip()
                     minutos = int(minutos_text) if minutos_text.isdigit() else 0
                     proximos.append(

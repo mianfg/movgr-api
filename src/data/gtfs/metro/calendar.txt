@@ -1,0 +1,5 @@
+service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
+L1Domingo25,0,0,0,0,0,0,1,20251101,20260328
+L1LaborableInvierno25,1,1,1,1,0,0,0,20251101,20260328
+L1Sabado25,0,0,0,0,0,1,0,20251101,20260328
+L1ViernesInvierno25,0,0,0,0,1,0,0,20251101,20260328

@@ -3,7 +3,9 @@ from src.models.base import MovGrBaseModel
 
 class LineaBus(MovGrBaseModel):
     id: str
-    nombre: str | None
+    nombre: str | None = None
+    color: str | None = None
+    text_color: str | None = None
 
 
 class ProximoBus(MovGrBaseModel):
@@ -15,6 +17,9 @@ class ProximoBus(MovGrBaseModel):
 class ParadaBus(MovGrBaseModel):
     id: int
     nombre: str
+    lat: float | None = None
+    lon: float | None = None
+    lineas: list[str] | None = None
 
 
 class LlegadasBus(MovGrBaseModel):

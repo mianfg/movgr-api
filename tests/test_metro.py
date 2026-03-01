@@ -28,7 +28,7 @@ def test_llegadas_parada_not_found():
 
 
 def test_llegadas_parada_found():
-    response = client.get("/metro/llegadas/105")
+    response = client.get("/metro/llegadas/5")
     assert response.status_code == 200  # noqa: PLR2004
     data = response.json()
     assert LlegadasMetro.model_validate(data)

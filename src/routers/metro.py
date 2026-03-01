@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
+from src.models.map import LineaMetroDetail
 from src.models.metro import LlegadasMetro, ParadaMetro
-from src.services.metro import get_llegadas, get_llegadas_parada
+from src.services.metro import get_llegadas, get_llegadas_parada, get_linea_detail
 from src.services.metro import paradas as paradas_metro
 
 router = APIRouter()
@@ -10,7 +11,7 @@ router = APIRouter()
 @router.get(
     "/paradas",
     response_model=list[ParadaMetro],
-    response_description="Lista de paradas de metro",
+    response_description="Lista de paradas de metro con coordenadas",
 )
 async def paradas() -> list[ParadaMetro]:
     return paradas_metro
@@ -32,3 +33,12 @@ async def llegadas() -> list[LlegadasMetro]:
 )
 async def llegadas_parada(id_parada: str) -> LlegadasMetro:
     return get_llegadas_parada(id_parada)
+
+
+@router.get(
+    "/lineas",
+    response_model=LineaMetroDetail,
+    response_description="Información de línea de metro con forma de ruta",
+)
+async def lineas() -> LineaMetroDetail:
+    return get_linea_detail()

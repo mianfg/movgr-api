@@ -1,0 +1,2 @@
+fare_id,price,currency_type,payment_method,transfers
+standard,1.35,EUR,0,0

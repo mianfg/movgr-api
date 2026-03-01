@@ -19,6 +19,8 @@ class ParadaMetro(MovGrBaseModel):
     linea: str
     id: str
     nombre: str
+    lat: float | None = None
+    lon: float | None = None
 
 
 class LlegadasMetro(MovGrBaseModel):

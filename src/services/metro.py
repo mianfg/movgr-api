@@ -1,6 +1,4 @@
-import csv
 import json
-import os
 import re
 
 import requests
@@ -8,6 +6,8 @@ from bs4 import BeautifulSoup
 
 from src.cache import get_cached, set_cached
 from src.exceptions.exceptions import ParadaNotFoundError
+from src.gtfs import metro_feed
+from src.models.map import LineaMetroDetail, RouteShape, ShapePoint
 from src.models.metro import (
     LlegadasMetro,
     ParadaMetro,
@@ -15,15 +15,21 @@ from src.models.metro import (
 )
 
 
-def get_paradas() -> list[ParadaMetro]:
-    with open(os.path.join(os.path.dirname(__file__), "../data/metro/paradas.csv"), "r") as file:
-        reader = csv.reader(file)
-        next(reader)
-        paradas = [ParadaMetro(linea=row[0], id=row[1], nombre=row[2]) for row in reader]
-    return paradas
+def _build_paradas() -> list[ParadaMetro]:
+    stops = sorted(metro_feed.stops_by_id.values(), key=lambda s: int(s.stop_id))
+    return [
+        ParadaMetro(
+            linea="1",
+            id=stop.stop_id,
+            nombre=stop.stop_name,
+            lat=stop.stop_lat,
+            lon=stop.stop_lon,
+        )
+        for stop in stops
+    ]
 
 
-paradas = get_paradas()
+paradas = _build_paradas()
 
 
 def get_llegadas() -> list[LlegadasMetro]:
@@ -78,9 +84,24 @@ def get_llegadas() -> list[LlegadasMetro]:
     return result
 
 
-def get_llegadas_parada(id_parada: str) -> ProximoMetro:
+def get_llegadas_parada(id_parada: str) -> LlegadasMetro:
     proximos = get_llegadas()
     for proximo in proximos:
         if proximo.parada.id == id_parada:
             return proximo
     raise ParadaNotFoundError from None
+
+
+def get_linea_detail() -> LineaMetroDetail:
+    route = metro_feed.routes_by_short_name.get("1")
+    nombre = route.route_long_name if route else None
+
+    direction_shapes = metro_feed.route_shapes.get("1", {})
+    shapes = [
+        RouteShape(
+            direction=d,
+            points=[ShapePoint(lat=p.lat, lon=p.lon) for p in pts],
+        )
+        for d, pts in sorted(direction_shapes.items())
+    ]
+    return LineaMetroDetail(id="1", nombre=nombre, shapes=shapes)
