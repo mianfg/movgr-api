@@ -4,6 +4,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 
+from src.cache import get_cached, set_cached
 from src.exceptions.exceptions import (
     LineaNotFoundError,
     ParadaNotFoundError,
@@ -54,10 +55,17 @@ def __extract_parada_from_soup(soup: BeautifulSoup, id_parada: int) -> ParadaBus
 
 def get_parada(id_parada: int) -> ParadaBus:
     """Scrape parada information from the bus service website."""
+    cache_key = f"bus:parada:{id_parada}"
+    cached = get_cached(cache_key)
+    if cached:
+        return ParadaBus.model_validate_json(cached)
+
     try:
         response = __perform_request(id_parada)
         soup = BeautifulSoup(response.text, "html.parser")
-        return __extract_parada_from_soup(soup, id_parada)
+        result = __extract_parada_from_soup(soup, id_parada)
+        set_cached(cache_key, result.model_dump_json())
+        return result
     except ParadaRequestError:
         raise ParadaNotFoundError from None
 
@@ -111,7 +119,11 @@ def __perform_request(num_parada: int) -> dict:
 
 
 def get_llegadas_parada(num_parada: int) -> LlegadasBus:
-    # Perform single request to get both parada info and bus arrivals
+    cache_key = f"bus:llegadas:{num_parada}"
+    cached = get_cached(cache_key)
+    if cached:
+        return LlegadasBus.model_validate_json(cached)
+
     req = __perform_request(num_parada)
     soup = BeautifulSoup(req.text, "html.parser")
 
@@ -152,4 +164,6 @@ def get_llegadas_parada(num_parada: int) -> LlegadasBus:
                         ),
                     )
 
-    return LlegadasBus(parada=parada, proximos=proximos)
+    result = LlegadasBus(parada=parada, proximos=proximos)
+    set_cached(cache_key, result.model_dump_json())
+    return result

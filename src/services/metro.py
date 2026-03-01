@@ -1,10 +1,12 @@
 import csv
+import json
 import os
 import re
 
 import requests
 from bs4 import BeautifulSoup
 
+from src.cache import get_cached, set_cached
 from src.exceptions.exceptions import ParadaNotFoundError
 from src.models.metro import (
     LlegadasMetro,
@@ -25,6 +27,11 @@ paradas = get_paradas()
 
 
 def get_llegadas() -> list[LlegadasMetro]:
+    cache_key = "metro:llegadas"
+    cached = get_cached(cache_key)
+    if cached:
+        return [LlegadasMetro.model_validate(item) for item in json.loads(cached)]
+
     headers = {
         "accept": "*/*",
         "content-type": "application/x-www-form-urlencoded",
@@ -50,7 +57,7 @@ def get_llegadas() -> list[LlegadasMetro]:
     for parada in paradas_soup:
         parada[1:] = ["".join(re.findall(r"\d+", col)) for col in parada[1:]]
 
-    return [
+    result = [
         LlegadasMetro(
             parada=parada,
             proximos=sorted(
@@ -67,6 +74,8 @@ def get_llegadas() -> list[LlegadasMetro]:
         )
         for parada_soup, parada in zip(paradas_soup, paradas)
     ]
+    set_cached(cache_key, json.dumps([item.model_dump(mode="json") for item in result]))
+    return result
 
 
 def get_llegadas_parada(id_parada: str) -> ProximoMetro:
