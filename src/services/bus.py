@@ -150,7 +150,7 @@ def __perform_request(num_parada: int) -> dict:
         "https://www.transportesrober.com/flotamovimiento/paradas.htm",
         headers=headers,
         files=files,
-        timeout=5,
+        timeout=12,
     )
 
     if response.status_code != 200:  # noqa: PLR2004
@@ -166,10 +166,27 @@ def get_llegadas_parada(num_parada: int) -> LlegadasBus:
     if cached:
         return LlegadasBus.model_validate_json(cached)
 
-    req = __perform_request(num_parada)
-    soup = BeautifulSoup(req.text, "html.parser")
+    fallback = paradas.get(num_parada)
+    response = None
+    for attempt in range(2):
+        try:
+            response = __perform_request(num_parada)
+            break
+        except ParadaRequestError:
+            if attempt == 0:
+                continue
+            if fallback is not None:
+                return LlegadasBus(parada=fallback, proximos=[])
+            raise
 
-    parada = __extract_parada_from_soup(soup, num_parada)
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    try:
+        parada = __extract_parada_from_soup(soup, num_parada)
+    except ParadaNotFoundError:
+        if fallback is None:
+            raise
+        parada = fallback
 
     message = soup.find("div", {"class": "message"})
     if message:
