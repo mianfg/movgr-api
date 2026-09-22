@@ -59,3 +59,11 @@ def test_subscriptions_index_by_stop_not_by_consumer():
     unsubscribe("aa" * 32)
     unsubscribe("bb" * 32)
     unsubscribe("cc" * 32)
+
+
+def test_subscribe_rejects_short_token():
+    try:
+        LiveSubscribeRequest(token="aa", environment="sandbox", kind="bus", stop_id="1")
+    except Exception:
+        return
+    raise AssertionError("expected invalid token")

@@ -2,8 +2,8 @@ import logging
 import os
 import time
 
+import httpx
 import jwt
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -14,11 +14,16 @@ _KEY_P8 = os.getenv("APNS_KEY_P8", "").replace("\\n", "\n")
 
 _jwt: str | None = None
 _jwt_iat = 0
-_session = requests.Session()
+_client: httpx.Client | None = None
 
 
 def is_configured() -> bool:
     return bool(_KEY_ID and _KEY_P8)
+
+
+def is_device_token(token: str) -> bool:
+    value = token.strip().lower()
+    return len(value) >= 64 and all(char in "0123456789abcdef" for char in value)
 
 
 def _token() -> str | None:
@@ -28,14 +33,22 @@ def _token() -> str | None:
     now = int(time.time())
     if _jwt and now - _jwt_iat < 50 * 60:
         return _jwt
-    _jwt = jwt.encode(
+    encoded = jwt.encode(
         {"iss": _TEAM_ID, "iat": now},
         _KEY_P8,
         algorithm="ES256",
         headers={"kid": _KEY_ID, "typ": "JWT"},
     )
+    _jwt = encoded.decode() if isinstance(encoded, bytes) else encoded
     _jwt_iat = now
     return _jwt
+
+
+def _http() -> httpx.Client:
+    global _client
+    if _client is None:
+        _client = httpx.Client(http2=True, timeout=12.0)
+    return _client
 
 
 def _host(environment: str) -> str:
@@ -52,8 +65,8 @@ def send_live_update(
     event: str = "update",
 ) -> int:
     auth = _token()
-    if not auth:
-        return 0
+    if not auth or not is_device_token(device_token):
+        return 400
     url = f"{_host(environment)}/3/device/{device_token}"
     headers = {
         "authorization": f"bearer {auth}",
@@ -72,7 +85,7 @@ def send_live_update(
         }
     }
     try:
-        response = _session.post(url, json=body, headers=headers, timeout=12)
+        response = _http().post(url, json=body, headers=headers)
         if response.status_code >= 400:
             logger.warning("APNs %s: %s", response.status_code, response.text[:300])
         return response.status_code

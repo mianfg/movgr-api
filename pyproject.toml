@@ -16,6 +16,7 @@ requests = "^2.32.3"
 uvicorn = "^0.30.6"
 redis = "^5.0.0"
 PyJWT = {version = "^2.9.0", extras = ["crypto"]}
+httpx = {version = "^0.28.1", extras = ["http2"]}
 
 [tool.poetry.group.dev]
 optional = true

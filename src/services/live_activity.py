@@ -10,7 +10,7 @@ from src.cache import kv_delete, kv_get, kv_set, set_add, set_count, set_members
 from src.models.bus import LlegadasBus
 from src.models.live import LiveSubscribeRequest
 from src.models.metro import DireccionMetro, LlegadasMetro
-from src.services.apns import is_configured, send_live_update
+from src.services.apns import is_configured, is_device_token, send_live_update
 from src.services.bus import get_llegadas_parada
 from src.services.metro import get_llegadas
 
@@ -50,6 +50,8 @@ def _drop_from_stop(token: str, kind: str, stop_id: str) -> None:
 
 def subscribe(request: LiveSubscribeRequest) -> None:
     token = request.token.strip().lower()
+    if not is_device_token(token):
+        return
     payload = {
         "token": token,
         "environment": request.environment if request.environment in {"sandbox", "production"} else "production",
@@ -249,7 +251,15 @@ def _deliver(sub: dict, state: dict, stale: int, digest: str) -> None:
 
 def _fanout(recips: list[dict], state: dict, stale: int) -> None:
     digest = _fingerprint(state)
-    pending = [sub for sub in recips if _last_fingerprint.get(sub["token"]) != digest]
+    pending: list[dict] = []
+    for sub in recips:
+        token = sub["token"]
+        if _last_fingerprint.get(token) == digest:
+            continue
+        if not is_device_token(token):
+            unsubscribe(token)
+            continue
+        pending.append(sub)
     if not pending:
         return
     if len(pending) == 1:
