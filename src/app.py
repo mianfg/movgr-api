@@ -1,4 +1,6 @@
+import asyncio
 import os
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import APIRouter, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,7 +8,21 @@ from fastapi.responses import Response
 
 from src.exceptions.handler import add_exception_handler
 from src.routers.bus import router as bus_api
+from src.routers.live import router as live_api
 from src.routers.metro import router as metro_api
+from src.services.live_activity import run_loop
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task = asyncio.create_task(run_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError, Exception):
+            await task
+
 
 app = FastAPI(
     title="MovGR",
@@ -17,6 +33,7 @@ app = FastAPI(
         "url": "https://mianfg.me",
         "email": "hello@mianfg.me",
     },
+    lifespan=lifespan,
 )
 
 if cors_origins := os.getenv("CORS_ORIGINS"):
@@ -41,6 +58,7 @@ router = APIRouter()
 
 router.include_router(bus_api, prefix="/bus", tags=["bus"])
 router.include_router(metro_api, prefix="/metro", tags=["metro"])
+router.include_router(live_api, prefix="/live", tags=["live"])
 
 app.include_router(router)
 
@@ -59,7 +77,7 @@ except ImportError:
 def run() -> None:
     import uvicorn
 
-    uvicorn.run("src.app:app", host="localhost", port=8080, reload=True, workers=3)
+    uvicorn.run("src.app:app", host="localhost", port=8080, reload=True, workers=1)
 
 
 if __name__ == "__main__":

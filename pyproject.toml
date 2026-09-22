@@ -15,6 +15,7 @@ beautifulsoup4 = "^4.12.3"
 requests = "^2.32.3"
 uvicorn = "^0.30.6"
 redis = "^5.0.0"
+PyJWT = {version = "^2.9.0", extras = ["crypto"]}
 
 [tool.poetry.group.dev]
 optional = true
