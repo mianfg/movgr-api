@@ -8,6 +8,7 @@ from fastapi.responses import Response
 
 from src.exceptions.handler import add_exception_handler
 from src.routers.bus import router as bus_api
+from src.routers.ctagr import router as ctagr_api
 from src.routers.live import router as live_api
 from src.routers.metro import router as metro_api
 from src.services.live_activity import run_loop
@@ -57,6 +58,7 @@ async def health_check() -> Response:
 router = APIRouter()
 
 router.include_router(bus_api, prefix="/bus", tags=["bus"])
+router.include_router(ctagr_api, prefix="/ctagr", tags=["ctagr"])
 router.include_router(metro_api, prefix="/metro", tags=["metro"])
 router.include_router(live_api, prefix="/live", tags=["live"])
 

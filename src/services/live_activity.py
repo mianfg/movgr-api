@@ -8,10 +8,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.cache import kv_delete, kv_get, kv_set, set_add, set_count, set_members, set_remove, try_lock
 from src.models.bus import LlegadasBus
+from src.models.ctagr import LlegadasCtagr
 from src.models.live import LiveSubscribeRequest
 from src.models.metro import DireccionMetro, LlegadasMetro
 from src.services.apns import is_configured, is_device_token, send_live_update
 from src.services.bus import get_llegadas_parada
+from src.services.ctagr import get_llegadas_parada as get_llegadas_ctagr
 from src.services.metro import get_llegadas
 
 logger = logging.getLogger(__name__)
@@ -194,6 +196,75 @@ def bus_content_state(arrivals: LlegadasBus, preferred_line_id: str | None) -> t
     return state, _stale_date(etas, now, True)
 
 
+def ctagr_content_state(arrivals: LlegadasCtagr, preferred_line_id: str | None) -> tuple[dict, int]:
+    now = time.time()
+    proximos = arrivals.proximos
+    if preferred_line_id:
+        proximos = [item for item in proximos if item.linea.id == preferred_line_id]
+
+    order: list[str] = []
+    lines = {}
+    minutes_by_line: dict[str, list[int]] = {}
+    horas_by_line: dict[str, list[str]] = {}
+    en_ruta_by_line: dict[str, bool] = {}
+    for proximo in proximos:
+        line_id = proximo.linea.id
+        if line_id not in minutes_by_line:
+            order.append(line_id)
+            lines[line_id] = proximo.linea
+            minutes_by_line[line_id] = []
+            horas_by_line[line_id] = []
+            en_ruta_by_line[line_id] = False
+        minutes_by_line[line_id].append(proximo.minutos)
+        horas_by_line[line_id].append(proximo.hora)
+        en_ruta_by_line[line_id] = en_ruta_by_line[line_id] or proximo.en_ruta
+
+    rows = []
+    etas: list[float] = []
+    for line_id in order[:3]:
+        times = sorted(minutes_by_line.get(line_id, []))[:3]
+        if not times:
+            continue
+        linea = lines[line_id]
+        first, rest = times[0], times[1:]
+        first_eta = _eta(first, now)
+        extra_etas = [_eta(value, now) for value in rest]
+        etas.extend([first_eta, *extra_etas])
+        hora = (horas_by_line.get(line_id) or [""])[0]
+        live = " · en ruta" if en_ruta_by_line.get(line_id) else ""
+        rows.append(
+            {
+                "badge": linea.id,
+                "colorHex": linea.color or "FFFFFF",
+                "textColorHex": linea.text_color or "15803d",
+                "title": f"{hora}{live}" if hora else linea.id,
+                "minutes": first,
+                "eta": first_eta,
+                "additionalMinutes": rest,
+                "additionalETAs": extra_etas,
+            }
+        )
+
+    any_live = any(en_ruta_by_line.values())
+    state = {
+        "stopName": arrivals.parada.nombre,
+        "subtitle": "Consorcio · en ruta" if any_live else "Consorcio · horario",
+        "kind": "ctagr",
+        "rows": rows,
+        "armillaMinutes": [],
+        "alboloteMinutes": [],
+        "armillaETAs": [],
+        "alboloteETAs": [],
+        "metroDirection": "Armilla",
+        "metroInverted": False,
+        "updatedAt": now,
+        "isOnline": True,
+    }
+    if preferred_line_id:
+        state["preferredLineId"] = preferred_line_id
+    return state, _stale_date(etas, now, True)
+
+
 def metro_content_state(
     arrivals: LlegadasMetro,
     direction: str,
@@ -294,9 +365,12 @@ def tick() -> None:
 
         arrivals_bus: LlegadasBus | None = None
         arrivals_metro: LlegadasMetro | None = None
+        arrivals_ctagr: LlegadasCtagr | None = None
         try:
             if kind == "bus":
                 arrivals_bus = get_llegadas_parada(int(stop_id))
+            elif kind == "ctagr":
+                arrivals_ctagr = get_llegadas_ctagr(stop_id)
             elif metro_all is not None:
                 arrivals_metro = next((item for item in metro_all if item.parada.id == stop_id), None)
         except Exception:
@@ -310,6 +384,8 @@ def tick() -> None:
         for (preferred, direction, inverted), recips in variants.items():
             if kind == "bus" and arrivals_bus is not None:
                 state, stale = bus_content_state(arrivals_bus, preferred)
+            elif kind == "ctagr" and arrivals_ctagr is not None:
+                state, stale = ctagr_content_state(arrivals_ctagr, preferred)
             elif kind == "metro" and arrivals_metro is not None:
                 state, stale = metro_content_state(arrivals_metro, direction, inverted)
             else:
