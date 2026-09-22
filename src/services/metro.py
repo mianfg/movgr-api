@@ -1,12 +1,22 @@
 import json
+import logging
 import re
 
+import urllib3
 import requests
 from bs4 import BeautifulSoup
+from urllib3.exceptions import InsecureRequestWarning
 
-from src.cache import get_cached, set_cached
+from src.cache import get_cached, kv_get, kv_set, set_cached
 from src.exceptions.exceptions import ParadaNotFoundError
 from src.gtfs import metro_feed
+
+logger = logging.getLogger(__name__)
+urllib3.disable_warnings(InsecureRequestWarning)
+
+_CACHE_KEY = "metro:llegadas"
+_LAST_KEY = "metro:llegadas:last"
+_DOWN_KEY = "metro:llegadas:down"
 from src.models.map import LineaMetroDetail, RouteShape, ShapePoint
 from src.models.metro import (
     LlegadasMetro,
@@ -32,11 +42,29 @@ def _build_paradas() -> list[ParadaMetro]:
 paradas = _build_paradas()
 
 
+def _parse_cached(raw: str | None) -> list[LlegadasMetro] | None:
+    if not raw:
+        return None
+    try:
+        return [LlegadasMetro.model_validate(item) for item in json.loads(raw)]
+    except Exception:
+        return None
+
+
+def _empty_llegadas() -> list[LlegadasMetro]:
+    return [LlegadasMetro(parada=parada, proximos=[]) for parada in paradas]
+
+
+def _fallback_llegadas() -> list[LlegadasMetro]:
+    return _parse_cached(kv_get(_LAST_KEY)) or _empty_llegadas()
+
+
 def get_llegadas() -> list[LlegadasMetro]:
-    cache_key = "metro:llegadas"
-    cached = get_cached(cache_key)
-    if cached:
-        return [LlegadasMetro.model_validate(item) for item in json.loads(cached)]
+    cached = _parse_cached(get_cached(_CACHE_KEY))
+    if cached is not None:
+        return cached
+    if get_cached(_DOWN_KEY):
+        return _fallback_llegadas()
 
     headers = {
         "accept": "*/*",
@@ -47,12 +75,19 @@ def get_llegadas() -> list[LlegadasMetro]:
         "referer": "https://metropolitanogranada.es/horariosreal",
     }
 
-    response = requests.post(
-        "https://metropolitanogranada.es/MGhorariosreal.asp",
-        headers=headers,
-        timeout=5,
-        verify=False,
-    )
+    try:
+        response = requests.post(
+            "https://metropolitanogranada.es/MGhorariosreal.asp",
+            headers=headers,
+            timeout=12,
+            verify=False,
+        )
+        response.raise_for_status()
+    except requests.RequestException:
+        logger.warning("metro scrape timed out or failed; serving last good arrivals")
+        set_cached(_DOWN_KEY, "1", ttl=30)
+        return _fallback_llegadas()
+
     response.encoding = response.apparent_encoding
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -80,7 +115,9 @@ def get_llegadas() -> list[LlegadasMetro]:
         )
         for parada_soup, parada in zip(paradas_soup, paradas)
     ]
-    set_cached(cache_key, json.dumps([item.model_dump(mode="json") for item in result]))
+    blob = json.dumps([item.model_dump(mode="json") for item in result])
+    set_cached(_CACHE_KEY, blob)
+    kv_set(_LAST_KEY, blob, 30 * 60)
     return result
 
 
