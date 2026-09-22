@@ -25,6 +25,7 @@ _TEXT = "15803d"
 _NETWORK_TTL = 6 * 60 * 60
 _LLEGADAS_TTL = 25
 _LIVE_TTL = 25
+_BUSINFO_TIMEOUT = 2.5
 
 _session = requests.Session()
 _session.headers.update({"User-Agent": "movGR/1.4"})
@@ -46,12 +47,12 @@ def _businfo(params: dict) -> dict | None:
             _BUSINFO,
             params=params,
             headers={"Referer": _REFERER},
-            timeout=8,
+            timeout=_BUSINFO_TIMEOUT,
         )
         response.raise_for_status()
         payload = response.json()
     except Exception:
-        logger.warning("ctagr live request failed: %s", params)
+        logger.debug("ctagr live request failed: %s", params)
         return None
     if payload.get("E") not in {0, "0", None} and "lineas" not in payload and "posicion" not in payload:
         return None
@@ -252,13 +253,16 @@ def get_llegadas_parada(stop_id: str) -> LlegadasCtagr:
         for codigo in (parada.lineas or [])
         if codigo in network["internal_by_codigo"]
     }
-    with ThreadPoolExecutor(max_workers=6, thread_name_prefix="ctagr-live") as pool:
-        futures = {pool.submit(_vehicles_for_line, internal): internal for internal in internals}
-        for future in as_completed(futures):
-            vehicles = future.result()
-            if not vehicles:
-                continue
-            live_by_line[vehicles[0].linea] = vehicles
+    if internals:
+        with ThreadPoolExecutor(max_workers=4, thread_name_prefix="ctagr-live") as pool:
+            futures = [pool.submit(_vehicles_for_line, internal) for internal in internals]
+            for future in as_completed(futures):
+                try:
+                    vehicles = future.result()
+                except Exception:
+                    continue
+                if vehicles:
+                    live_by_line[vehicles[0].linea] = vehicles
 
     now = datetime.now(_TZ)
     proximos: list[ProximoCtagr] = []
@@ -291,46 +295,28 @@ def get_llegadas_parada(stop_id: str) -> LlegadasCtagr:
 
 def get_linea_detail(codigo: str) -> LineaCtagrDetail:
     network = _network()
-    internal = network["internal_by_codigo"].get(codigo)
-    if not internal:
+    if codigo not in network["internal_by_codigo"]:
         raise LineaNotFoundError
-    nombre = network["nombre_by_codigo"].get(codigo)
     shapes: list[RouteShape] = []
-    vehicles: list[VehiculoCtagr] = []
     for sentido in (1, 2):
-        payload = _businfo({"accion": "infoLinea", "idlinea": internal, "sentido": sentido})
-        points = _parse_polyline((payload or {}).get("linea", {}).get("polilinea")) if payload else []
-        if not points:
-            ordered = [
-                stop
-                for stop in network["stops_of_line"].get(codigo, [])
-                if str(stop.get("sentido")) == str(sentido) and stop.get("latitud")
-            ]
-            ordered.sort(key=lambda item: item.get("orden") or 0)
-            points = [
-                ShapePoint(lat=float(stop["latitud"]), lon=float(stop["longitud"]))
-                for stop in ordered
-                if stop.get("longitud")
-            ]
+        ordered = [
+            stop
+            for stop in network["stops_of_line"].get(codigo, [])
+            if str(stop.get("sentido")) == str(sentido) and stop.get("latitud")
+        ]
+        ordered.sort(key=lambda item: item.get("orden") or 0)
+        points = [
+            ShapePoint(lat=float(stop["latitud"]), lon=float(stop["longitud"]))
+            for stop in ordered
+            if stop.get("longitud")
+        ]
         if points:
             shapes.append(RouteShape(direction=sentido, points=points))
-        if payload:
-            for item in payload.get("posicion") or []:
-                lat, lon = _decode_dms(item.get("latitud"), item.get("longitud"))
-                vehicles.append(
-                    VehiculoCtagr(
-                        linea=codigo,
-                        sentido=int(item.get("sentido") or sentido),
-                        lat=lat,
-                        lon=lon,
-                        visto=item.get("hora") or item.get("horaoperacion"),
-                    )
-                )
     return LineaCtagrDetail(
         id=codigo,
-        nombre=nombre,
+        nombre=network["nombre_by_codigo"].get(codigo),
         color=_COLOR,
         text_color=_TEXT,
         shapes=shapes,
-        vehiculos=vehicles,
+        vehiculos=[],
     )
