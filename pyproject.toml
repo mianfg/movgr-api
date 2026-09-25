@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "movgr-api"
-version = "0.1.1"
+version = "0.1.2"
 description = "API para información de movilidad urbana de Granada (bus y metro)"
 authors = ["Miguel Ángel Fernández Gutiérrez <yo@mianfg.me>"]
 license = "MIT License"

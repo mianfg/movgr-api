@@ -2,9 +2,8 @@ import asyncio
 import os
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import APIRouter, FastAPI, status
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
 
 from src.exceptions.handler import add_exception_handler
 from src.routers.bus import router as bus_api
@@ -28,7 +27,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="MovGR",
     description=("API para información de transportes urbanos de Granada"),
-    version="0.1.1",
+    version="0.1.2",
     contact={
         "name": "Miguel Ángel Fernández Gutiérrez",
         "url": "https://mianfg.me",
@@ -51,8 +50,8 @@ add_exception_handler(app)
 
 
 @app.get("/")
-async def health_check() -> Response:
-    return Response(status_code=status.HTTP_200_OK)
+async def health_check() -> dict:
+    return {"status": "ok", "version": app.version}
 
 
 router = APIRouter()

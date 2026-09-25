@@ -8,3 +8,4 @@ client = TestClient(app)
 def test_health_check():
     response = client.get("/")
     assert response.status_code == 200  # noqa: PLR2004
+    assert response.json()["version"] == app.version
