@@ -8,6 +8,10 @@ permissions:
   contents: read
   packages: write
 
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/movgr-api:${{ github.sha }}
+  MANIFEST: cluster/apps/public/movgr/movgr.yaml
+
 jobs:
   image:
     runs-on: ubuntu-latest
@@ -26,35 +30,22 @@ jobs:
         with:
           context: .
           push: true
-          tags: |
-            ghcr.io/mianfg/movgr-api:${{ github.sha }}
-            ghcr.io/mianfg/movgr-api:latest
-          labels: |
-            org.opencontainers.image.source=https://github.com/mianfg/movgr-api
+          tags: ${{ env.IMAGE }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Make GHCR package public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api --method PUT \
-            -H "Accept: application/vnd.github+json" \
-            /user/packages/container/movgr-api/visibility \
-            -f visibility=public || true
 
       - name: Point guava at this image
         env:
           GH_TOKEN: ${{ secrets.GUAVA_GITOPS_TOKEN }}
-          IMAGE: ghcr.io/mianfg/movgr-api:${{ github.sha }}
         run: |
           set -euo pipefail
           tmp=$(mktemp -d)
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/mianfg/guava.git" "$tmp"
-          python3 scripts/bump-guava-movgr-image.py "$tmp/cluster/apps/public/movgr/movgr.yaml" "$IMAGE"
+          python3 "$tmp/scripts/set-app-image.py" "$tmp/$MANIFEST" movgr "$IMAGE"
           git -C "$tmp" config user.name "github-actions[bot]"
           git -C "$tmp" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C "$tmp" add cluster/apps/public/movgr/movgr.yaml
+          git -C "$tmp" add "$MANIFEST"
           if git -C "$tmp" diff --cached --quiet; then
             echo "guava already on $IMAGE"
             exit 0
